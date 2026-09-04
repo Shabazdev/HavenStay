@@ -21,9 +21,49 @@ import { upsertAuthUserSync, syncAuthUserUpdate, AuthUserDoc } from './dbSync.ts
 
 export { fromNodeHeaders };
 
-export const BETTER_AUTH_BASE_URL = (
-  process.env.BETTER_AUTH_URL || process.env.APP_URL || `http://localhost:${process.env.PORT || 3000}`
-).replace(/\/+$/, '');
+/**
+ * Resolves the public base URL of the deployment.
+ *
+ * Order of precedence:
+ *  1. Explicit env override (BETTER_AUTH_URL / APP_URL) — recommended in
+ *     production so the value is stable.
+ *  2. Vercel-provided production/preview domains (never localhost).
+ *  3. Localhost fallback for local development only.
+ */
+function resolvePublicBaseUrl(): string {
+  const explicit = process.env.BETTER_AUTH_URL || process.env.APP_URL || '';
+  if (explicit) return explicit;
+
+  // Vercel injects these automatically — use them so production never
+  // falls back to a localhost URL.
+  const vercelProductionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (vercelProductionUrl) return `https://${vercelProductionUrl}`;
+  const vercelUrl = process.env.VERCEL_URL;
+  if (vercelUrl) return `https://${vercelUrl}`;
+
+  return `http://localhost:${process.env.PORT || 3000}`;
+}
+
+export const BETTER_AUTH_BASE_URL = resolvePublicBaseUrl().replace(/\/+$/, '');
+
+/**
+ * Additional origins trusted by Better Auth (CSRF/origin checks). Comma
+ * separated via the TRUSTED_ORIGINS env var, e.g. for custom domains and
+ * deployment preview URLs. The base URL itself is always trusted.
+ */
+export const TRUSTED_ORIGINS: string[] = Array.from(
+  new Set(
+    [
+      BETTER_AUTH_BASE_URL,
+      process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '',
+      process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '',
+      process.env.VERCEL_BRANCH_URL ? `https://${process.env.VERCEL_BRANCH_URL}` : '',
+      ...(process.env.TRUSTED_ORIGINS ? process.env.TRUSTED_ORIGINS.split(',') : []),
+    ]
+      .map((origin) => origin.trim().replace(/\/+$/, ''))
+      .filter(Boolean)
+  )
+);
 
 /**
  * Read at call time (never at import time) so values loaded by
@@ -78,6 +118,9 @@ export function createAuth() {
   return betterAuth({
     appName: 'HavenStay',
     baseURL: BETTER_AUTH_BASE_URL,
+    // Trusted origins for CSRF/origin validation (production domains, Vercel
+    // deployment URLs, and any TRUSTED_ORIGINS env entries).
+    trustedOrigins: TRUSTED_ORIGINS,
     secret: resolveSecret(),
     database: resolveDatabase(),
 
