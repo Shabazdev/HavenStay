@@ -1,0 +1,6 @@
+{
+  "name": "HavenStay - Property Rental & Booking Platform",
+  "description": "A full-stack MERN property rental and booking platform featuring role-based dashboards for Tenants, Owners, and Admins, Stripe payments, property search, reviews, and secure authentication.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
