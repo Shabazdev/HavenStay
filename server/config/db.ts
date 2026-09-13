@@ -77,7 +77,10 @@ export async function connectDB() {
 
   dbConnectionPromise = mongoose
     .connect(process.env.MONGODB_URI as string, {
-      serverSelectionTimeoutMS: 8000,
+      // Keep cold-starts fast: don't queue queries or wait long when Atlas is
+      // unreachable (e.g. IP allowlist) — fail fast and fall back in-memory.
+      serverSelectionTimeoutMS: 4000,
+      bufferCommands: false,
     })
     .then(() => {
       console.log('[Database] Connected to MongoDB Atlas successfully.');

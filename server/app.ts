@@ -4,6 +4,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { connectDB, isMongoConfigured } from './config/db.ts';
 import { initAuth, ensureBootstrapAdmin } from './lib/auth.ts';
+import { hydratePropertiesFromMongo } from './lib/seedMongo.ts';
 import { toNodeHandler } from 'better-auth/node';
 
 import propertyRoutes from './routes/propertyRoutes.ts';
@@ -44,13 +45,32 @@ export async function createApp(): Promise<express.Express> {
     })
   );
 
-  // Connect to the database first so Better Auth can use the same
-  // MongoDB connection when one is configured.
-  await connectDB();
+  // Database + catalog are OPTIONAL: if Mongo is missing/unreachable, the app
+  // falls back to the in-memory store and the in-memory Better Auth adapter.
+  // Startup failures here must never take down the whole API in serverless.
+  try {
+    await connectDB();
+  } catch (err) {
+    console.error('[API] Database startup failure (continuing with in-memory fallback):', err);
+  }
+
+  // Serve the property catalog from MongoDB when it is reachable (and seed
+  // it on first run). Falls back to the in-memory catalog otherwise.
+  try {
+    await hydratePropertiesFromMongo();
+  } catch (err) {
+    console.error('[API] Property catalog hydration failure (continuing with in-memory catalog):', err);
+  }
 
   // Better Auth (email/password authentication + admin plugin).
   // IMPORTANT: mounted BEFORE body-parsing middleware as required by Better Auth.
-  const auth = initAuth();
+  let auth: ReturnType<typeof initAuth>;
+  try {
+    auth = initAuth();
+  } catch (err) {
+    console.error('[API] Better Auth initialization failure:', err);
+    throw err;
+  }
   // Optionally create the env-configured bootstrap admin (server-side only).
   await ensureBootstrapAdmin(auth);
   app.all('/api/auth/*', toNodeHandler(auth));

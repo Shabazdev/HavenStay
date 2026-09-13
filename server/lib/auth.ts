@@ -205,6 +205,12 @@ export function createAuth() {
         sameSite: 'lax',
       },
       useSecureCookies: resolvePublicBaseUrl().startsWith('https://'),
+      // Serverless: Vercel proxies every request, so the client IP arrives via
+      // forwarded headers. This lets Better Auth's rate limiter work correctly.
+      ipAddress: {
+        ipAddressHeaders: ['x-forwarded-for', 'x-real-ip'],
+        trustedProxies: ['::1', '127.0.0.1', '0.0.0.0'],
+      },
     },
 
     databaseHooks: {
