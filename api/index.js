@@ -1,47 +1,11 @@
-var __create = Object.create;
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
-};
-var __copyProps = (to, from, except, desc) => {
-  if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
-  }
-  return to;
-};
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
-var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-
-// serverless-entry.ts
-var serverless_entry_exports = {};
-__export(serverless_entry_exports, {
-  config: () => config,
-  default: () => handler
-});
-module.exports = __toCommonJS(serverless_entry_exports);
-
 // server/app.ts
-var import_express7 = __toESM(require("express"), 1);
-var import_cors = __toESM(require("cors"), 1);
-var import_path = __toESM(require("path"), 1);
-var import_dotenv = __toESM(require("dotenv"), 1);
+import express from "express";
+import cors from "cors";
+import path from "path";
+import dotenv from "dotenv";
 
 // server/config/db.ts
-var import_mongoose = __toESM(require("mongoose"), 1);
+import mongoose from "mongoose";
 
 // server/seedData.ts
 var INITIAL_USERS = [
@@ -634,13 +598,13 @@ async function connectDB() {
     console.log("[Database] No valid remote MONGODB_URI provided in environment. Using resilient in-memory data store.");
     return;
   }
-  if (import_mongoose.default.connection.readyState === 1) {
+  if (mongoose.connection.readyState === 1) {
     return;
   }
   if (dbConnectionPromise) {
     return dbConnectionPromise;
   }
-  dbConnectionPromise = import_mongoose.default.connect(process.env.MONGODB_URI, {
+  dbConnectionPromise = mongoose.connect(process.env.MONGODB_URI, {
     // Keep cold-starts fast: don't queue queries or wait long when Atlas is
     // unreachable (e.g. IP allowlist) — fail fast and fall back in-memory.
     serverSelectionTimeoutMS: 4e3,
@@ -656,12 +620,12 @@ async function connectDB() {
 }
 
 // server/lib/auth.ts
-var import_better_auth = require("better-auth");
-var import_plugins = require("better-auth/plugins");
-var import_node = require("better-auth/node");
-var import_mongo_adapter = require("@better-auth/mongo-adapter");
-var import_memory_adapter = require("@better-auth/memory-adapter");
-var import_mongoose2 = __toESM(require("mongoose"), 1);
+import { betterAuth } from "better-auth";
+import { admin } from "better-auth/plugins";
+import { fromNodeHeaders } from "better-auth/node";
+import { mongodbAdapter } from "@better-auth/mongo-adapter";
+import { memoryAdapter } from "@better-auth/memory-adapter";
+import mongoose2 from "mongoose";
 
 // server/lib/roles.ts
 var APP_ROLES = ["tenant", "owner", "admin"];
@@ -763,9 +727,9 @@ function hasValidMongoUri() {
   );
 }
 function resolveDatabase() {
-  if (hasValidMongoUri() && import_mongoose2.default.connection.readyState === 1 && import_mongoose2.default.connection.db) {
+  if (hasValidMongoUri() && mongoose2.connection.readyState === 1 && mongoose2.connection.db) {
     console.log("[Auth] Using MongoDB adapter for Better Auth persistence.");
-    return (0, import_mongo_adapter.mongodbAdapter)(import_mongoose2.default.connection.db, {
+    return mongodbAdapter(mongoose2.connection.db, {
       // Standalone MongoDB (no replica set) cannot run transactions.
       transaction: false,
       // Keep singular collection names (user, session, account, verification).
@@ -780,16 +744,16 @@ function resolveDatabase() {
   } else {
     console.warn(
       "[Auth] MongoDB is not connected yet (readyState=%s) \u2014 using the in-memory Better Auth adapter for this instance.",
-      import_mongoose2.default.connection.readyState
+      mongoose2.connection.readyState
     );
   }
-  return (0, import_memory_adapter.memoryAdapter)({ user: [], session: [], account: [], verification: [] });
+  return memoryAdapter({ user: [], session: [], account: [], verification: [] });
 }
 function createAuth() {
   const googleClientId = (process.env.GOOGLE_CLIENT_ID || "").trim();
   const googleClientSecret = (process.env.GOOGLE_CLIENT_SECRET || "").trim();
   const googleConfigured = Boolean(googleClientId && googleClientSecret) && !googleClientId.includes("your-google-client-id") && !googleClientSecret.includes("your-google-client-secret");
-  return (0, import_better_auth.betterAuth)({
+  return betterAuth({
     appName: "HavenStay",
     // Resolved lazily at creation time (after dotenv/Vercel env is loaded),
     // so production never falls back to localhost.
@@ -874,7 +838,7 @@ function createAuth() {
       }
     },
     plugins: [
-      (0, import_plugins.admin)({
+      admin({
         defaultRole: "tenant",
         adminRoles: ["admin"]
       })
@@ -924,11 +888,11 @@ function getAuth() {
 }
 
 // server/lib/seedMongo.ts
-var import_mongoose4 = __toESM(require("mongoose"), 1);
+import mongoose4 from "mongoose";
 
 // server/models/Property.ts
-var import_mongoose3 = __toESM(require("mongoose"), 1);
-var PropertySchema = new import_mongoose3.default.Schema(
+import mongoose3 from "mongoose";
+var PropertySchema = new mongoose3.Schema(
   {
     title: { type: String, required: true, trim: true },
     description: { type: String, required: true },
@@ -972,7 +936,7 @@ var PropertySchema = new import_mongoose3.default.Schema(
   },
   { timestamps: true }
 );
-var PropertyModel = import_mongoose3.default.models.Property || import_mongoose3.default.model("Property", PropertySchema);
+var PropertyModel = mongoose3.models.Property || mongoose3.model("Property", PropertySchema);
 
 // server/lib/seedMongo.ts
 function toPropertyDoc(p) {
@@ -1051,7 +1015,7 @@ function toSeedProperty(doc) {
   };
 }
 async function hydratePropertiesFromMongo() {
-  if (import_mongoose4.default.connection.readyState !== 1 || !import_mongoose4.default.connection.db) {
+  if (mongoose4.connection.readyState !== 1 || !mongoose4.connection.db) {
     return false;
   }
   try {
@@ -1072,10 +1036,10 @@ async function hydratePropertiesFromMongo() {
 }
 
 // server/app.ts
-var import_node2 = require("better-auth/node");
+import { toNodeHandler } from "better-auth/node";
 
 // server/routes/propertyRoutes.ts
-var import_express = require("express");
+import { Router } from "express";
 
 // server/controllers/propertyController.ts
 var getProperties = async (req, res) => {
@@ -1434,7 +1398,7 @@ var getFavorites = async (req, res) => {
 var requireAuth = async (req, res, next) => {
   try {
     const session = await getAuth().api.getSession({
-      headers: (0, import_node.fromNodeHeaders)(req.headers)
+      headers: fromNodeHeaders(req.headers)
     });
     const user = session?.user;
     if (!user) {
@@ -1479,7 +1443,7 @@ var authorizeRoles = (...allowedRoles) => {
 };
 
 // server/routes/propertyRoutes.ts
-var router = (0, import_express.Router)();
+var router = Router();
 router.get("/", getProperties);
 router.get("/featured", getFeaturedProperties);
 router.get("/item/:id", getPropertyById);
@@ -1494,7 +1458,7 @@ router.put("/:id/moderate", requireAuth, authorizeRoles("admin"), moderateProper
 var propertyRoutes_default = router;
 
 // server/routes/bookingRoutes.ts
-var import_express2 = require("express");
+import { Router as Router2 } from "express";
 
 // server/controllers/bookingController.ts
 var createBooking = async (req, res) => {
@@ -1663,7 +1627,7 @@ var updateBookingStatusWithCancelAlias = async (req, res) => {
 };
 
 // server/routes/bookingRoutes.ts
-var router2 = (0, import_express2.Router)();
+var router2 = Router2();
 router2.post("/", requireAuth, createBooking);
 router2.get("/my-bookings", requireAuth, getMyBookings);
 router2.get("/owner-bookings", requireAuth, authorizeRoles("owner", "admin"), getOwnerBookings);
@@ -1674,10 +1638,10 @@ router2.put("/:id/cancel", requireAuth, updateBookingStatusWithCancelAlias);
 var bookingRoutes_default = router2;
 
 // server/routes/paymentRoutes.ts
-var import_express3 = require("express");
+import { Router as Router3 } from "express";
 
 // server/controllers/paymentController.ts
-var import_stripe = __toESM(require("stripe"), 1);
+import Stripe from "stripe";
 var stripeClient = null;
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -1685,7 +1649,7 @@ function getStripe() {
     return null;
   }
   if (!stripeClient) {
-    stripeClient = new import_stripe.default(key);
+    stripeClient = new Stripe(key);
   }
   return stripeClient;
 }
@@ -1790,13 +1754,13 @@ var confirmPayment = async (req, res) => {
 };
 
 // server/routes/paymentRoutes.ts
-var router3 = (0, import_express3.Router)();
+var router3 = Router3();
 router3.post("/create-payment-intent", requireAuth, createPaymentIntent);
 router3.post("/confirm-payment", requireAuth, confirmPayment);
 var paymentRoutes_default = router3;
 
 // server/routes/reviewRoutes.ts
-var import_express4 = require("express");
+import { Router as Router4 } from "express";
 
 // server/controllers/reviewController.ts
 var addReview = async (req, res) => {
@@ -1860,13 +1824,13 @@ var getPropertyReviews = async (req, res) => {
 };
 
 // server/routes/reviewRoutes.ts
-var router4 = (0, import_express4.Router)();
+var router4 = Router4();
 router4.get("/property/:propertyId", getPropertyReviews);
 router4.post("/", requireAuth, addReview);
 var reviewRoutes_default = router4;
 
 // server/routes/ownerRoutes.ts
-var import_express5 = require("express");
+import { Router as Router5 } from "express";
 
 // server/controllers/ownerController.ts
 var getOwnerAnalytics = async (req, res) => {
@@ -1926,12 +1890,12 @@ var getOwnerAnalytics = async (req, res) => {
 };
 
 // server/routes/ownerRoutes.ts
-var router5 = (0, import_express5.Router)();
+var router5 = Router5();
 router5.get("/analytics", requireAuth, authorizeRoles("owner", "admin"), getOwnerAnalytics);
 var ownerRoutes_default = router5;
 
 // server/routes/adminRoutes.ts
-var import_express6 = require("express");
+import { Router as Router6 } from "express";
 
 // server/controllers/adminController.ts
 var getAdminStats = async (req, res) => {
@@ -2006,7 +1970,7 @@ var getAllUsers = async (req, res) => {
     const auth = getAuth();
     const result = await auth.api.listUsers({
       query: searchStr ? { searchValue: searchStr, searchField: "email", searchOperator: "contains", limit: 500 } : { limit: 500 },
-      headers: (0, import_node.fromNodeHeaders)(req.headers)
+      headers: fromNodeHeaders(req.headers)
     });
     let users = (result?.users || []).map((u) => authUserToAppRecord(u));
     for (const u of dbStore.users) {
@@ -2057,7 +2021,7 @@ var updateUserRole = async (req, res) => {
     try {
       await getAuth().api.setRole({
         body: { userId, role },
-        headers: (0, import_node.fromNodeHeaders)(req.headers)
+        headers: fromNodeHeaders(req.headers)
       });
     } catch (err) {
       console.warn(`[Admin] setRole skipped for ${userId}:`, err.message);
@@ -2097,7 +2061,7 @@ var toggleUserBlock = async (req, res) => {
     }
     try {
       const auth = getAuth();
-      const headers = (0, import_node.fromNodeHeaders)(req.headers);
+      const headers = fromNodeHeaders(req.headers);
       if (targetUser.isBlocked) {
         await auth.api.unbanUser({ body: { userId }, headers });
       } else {
@@ -2146,7 +2110,7 @@ var getAllTransactions = async (req, res) => {
 };
 
 // server/routes/adminRoutes.ts
-var router6 = (0, import_express6.Router)();
+var router6 = Router6();
 router6.use(requireAuth, authorizeRoles("admin"));
 router6.get("/stats", getAdminStats);
 router6.get("/properties", getAdminProperties);
@@ -2160,12 +2124,12 @@ router6.get("/transactions", getAllTransactions);
 var adminRoutes_default = router6;
 
 // server/app.ts
-import_dotenv.default.config();
+dotenv.config();
 async function createApp() {
-  const app = (0, import_express7.default)();
+  const app = express();
   app.set("trust proxy", 1);
   app.use(
-    (0, import_cors.default)({
+    cors({
       origin: true,
       credentials: true
     })
@@ -2188,9 +2152,9 @@ async function createApp() {
     throw err;
   }
   await ensureBootstrapAdmin(auth);
-  app.all("/api/auth/*", (0, import_node2.toNodeHandler)(auth));
-  app.use(import_express7.default.json({ limit: "10mb" }));
-  app.use(import_express7.default.urlencoded({ extended: true, limit: "10mb" }));
+  app.all("/api/auth/*", toNodeHandler(auth));
+  app.use(express.json({ limit: "10mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "10mb" }));
   app.get("/api/health", (req, res) => {
     res.json({
       status: "ok",
@@ -2214,10 +2178,10 @@ async function createApp() {
   app.use("/api/owner", ownerRoutes_default);
   app.use("/api/admin", adminRoutes_default);
   if (process.env.NODE_ENV === "production" && !process.env.VERCEL) {
-    const distPath = import_path.default.join(process.cwd(), "dist");
-    app.use(import_express7.default.static(distPath));
+    const distPath = path.join(process.cwd(), "dist");
+    app.use(express.static(distPath));
     app.get("*", (req, res) => {
-      res.sendFile(import_path.default.join(distPath, "index.html"));
+      res.sendFile(path.join(distPath, "index.html"));
     });
   }
   return app;
@@ -2251,7 +2215,7 @@ async function handler(req, res) {
     }
   }
 }
-// Annotate the CommonJS export names for ESM import in node:
-0 && (module.exports = {
-  config
-});
+export {
+  config,
+  handler as default
+};
