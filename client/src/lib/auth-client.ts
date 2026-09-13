@@ -39,10 +39,23 @@ export const { useSession, signIn, signUp, signOut, updateUser } = authClient;
  */
 export async function signInWithGoogle(): Promise<{ ok: boolean; message?: string }> {
   try {
-    await signIn.social({
+    // better-auth's client does NOT throw on HTTP errors — it resolves with
+    // `{ error }`. Check it so failures surface instead of spinning forever.
+    const result = (await signIn.social({
       provider: 'google',
       callbackURL: SOCIAL_REDIRECT,
-    });
+    })) as { error?: { message?: string; status?: number } | null } | undefined;
+
+    if (result?.error) {
+      const status = result.error.status;
+      const message =
+        status === 400 || /provider|configured|not enabled/i.test(result.error.message || '')
+          ? 'Google sign-in is not configured yet. Please use email and password, or contact the administrator.'
+          : result.error.message || 'Google sign-in failed. Please try again.';
+      return { ok: false, message };
+    }
+    // When the provider is configured, the browser is redirected to Google and
+    // this promise typically never resolves — reaching here means success.
     return { ok: true };
   } catch (error) {
     const message = error instanceof Error && error.message ? error.message : 'Google sign-in is not available right now.';
