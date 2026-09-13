@@ -17,7 +17,7 @@ import {
 import { useAuth } from '../context/AuthContext.tsx';
 import { useFavorites } from '../context/FavoritesContext.tsx';
 import { Booking, Property } from '../types/index.ts';
-import { api, showToast } from '../services/api.ts';
+import { api, showToast, showConfirmDialog } from '../services/api.ts';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 import { StripePaymentModal } from '../components/StripePaymentModal.tsx';
 import { PropertyCard } from '../components/PropertyCard.tsx';
@@ -67,7 +67,13 @@ export const TenantDashboard: React.FC = () => {
   }, []);
 
   const handleCancelBooking = async (bookingId: string) => {
-    if (!window.confirm('Are you sure you wish to cancel this reservation request?')) return;
+    const confirmed = await showConfirmDialog(
+      'Cancel this reservation?',
+      'The property will be released and any paid amount will be refunded to the original payment method.',
+      'Yes, cancel it',
+      true
+    );
+    if (!confirmed.isConfirmed) return;
     try {
       const res = await api.put(`/bookings/${bookingId}/cancel`);
       if (res.data.success) {

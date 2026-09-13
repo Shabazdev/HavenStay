@@ -7,9 +7,22 @@ import Swal from 'sweetalert2';
  * Authentication is handled by Better Auth via the httpOnly session cookie,
  * so requests are sent with `withCredentials: true` and never carry an
  * Authorization header or localStorage tokens.
+ *
+ * Base URL resolution:
+ *  - Same-origin `/api` by default (Vercel serves SPA + Express on one host).
+ *  - If `VITE_API_URL` is set (e.g. split frontend/backend deploys), it is
+ *    used instead. A bare host (`https://api.example.com`) is normalized to
+ *    `https://api.example.com/api`.
  */
+function resolveApiBaseUrl(): string {
+  const configured = ((import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_API_URL || '').trim();
+  if (!configured) return '/api';
+  const withoutTrailingSlash = configured.replace(/\/+$/, '');
+  return withoutTrailingSlash.endsWith('/api') ? withoutTrailingSlash : `${withoutTrailingSlash}/api`;
+}
+
 export const api = axios.create({
-  baseURL: '/api',
+  baseURL: resolveApiBaseUrl(),
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',

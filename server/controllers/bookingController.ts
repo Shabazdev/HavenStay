@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { dbStore } from '../config/db.ts';
 import { AuthRequest } from '../middleware/auth.ts';
 import { SeedBooking } from '../seedData.ts';
@@ -156,11 +156,19 @@ export const updateBookingStatus = async (req: AuthRequest, res: Response): Prom
     }
 
     const { id } = req.params;
-    const { status } = req.body; // 'confirmed' | 'cancelled' | 'rejected'
+    // The tenant "cancel" alias sends an empty body, so treat a missing
+    // status on that route as 'cancelled'.
+    const { status } = req.body as { status?: string };
+    const effectiveStatus = status || (req.path.endsWith('/cancel') ? 'cancelled' : undefined);
 
     const booking = dbStore.bookings.find((b) => b._id === id);
     if (!booking) {
       res.status(404).json({ success: false, message: 'Booking not found.' });
+      return;
+    }
+
+    if (!effectiveStatus || !['confirmed', 'cancelled', 'rejected'].includes(effectiveStatus)) {
+      res.status(400).json({ success: false, message: 'A valid booking status is required.' });
       return;
     }
 
@@ -173,22 +181,31 @@ export const updateBookingStatus = async (req: AuthRequest, res: Response): Prom
       return;
     }
 
-    if (isTenant && status !== 'cancelled') {
+    if (isTenant && !isAdmin && effectiveStatus !== 'cancelled') {
       res.status(403).json({ success: false, message: 'Tenants can only cancel bookings.' });
       return;
     }
 
-    booking.status = status;
-    if (status === 'cancelled' && booking.paymentStatus === 'paid') {
+    booking.status = effectiveStatus as SeedBooking['status'];
+    if (effectiveStatus === 'cancelled' && booking.paymentStatus === 'paid') {
       booking.paymentStatus = 'refunded';
     }
 
     res.status(200).json({
       success: true,
-      message: `Booking status updated to ${status}.`,
+      message: `Booking status updated to ${effectiveStatus}.`,
       booking,
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: 'Failed to update booking status.' });
   }
+};
+
+/**
+ * Alias handler for `PUT /api/bookings/:id/cancel` (used by the tenant
+ * dashboard). Delegates to updateBookingStatus, which treats the missing
+ * status body on the /cancel path as 'cancelled'.
+ */
+export const updateBookingStatusWithCancelAlias = async (req: Request, res: Response): Promise<void> => {
+  return updateBookingStatus(req as AuthRequest, res);
 };

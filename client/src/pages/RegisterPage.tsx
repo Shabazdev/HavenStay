@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Building2, Mail, Lock, User, AlertCircle, ArrowRight } from 'lucide-react';
+import { Building2, Mail, Lock, User, AlertCircle, ArrowRight, Chrome } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.tsx';
+import { signInWithGoogle } from '../lib/auth-client.ts';
+import { showToast } from '../services/api.ts';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -14,6 +16,7 @@ export const RegisterPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const validate = (): string | null => {
@@ -58,6 +61,19 @@ export const RegisterPage: React.FC = () => {
     // New accounts always start as tenant (roles are assigned server-side by
     // administrators only — never from the frontend).
     navigate('/dashboard/tenant', { replace: true });
+  };
+
+  const handleGoogleSignUp = async () => {
+    setErrorMessage(null);
+    setIsGoogleSubmitting(true);
+    const result = await signInWithGoogle();
+    if (!result.ok) {
+      setIsGoogleSubmitting(false);
+      const message = result.message || 'Google sign-up is not available right now.';
+      setErrorMessage(message);
+      showToast(message, 'error');
+    }
+    // On success Better Auth redirects to the OAuth provider automatically.
   };
 
   return (
@@ -164,6 +180,28 @@ export const RegisterPage: React.FC = () => {
             )}
           </button>
         </form>
+
+        <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          <span className="h-px flex-1 bg-slate-200" />
+          <span>or</span>
+          <span className="h-px flex-1 bg-slate-200" />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleGoogleSignUp}
+          disabled={isGoogleSubmitting}
+          className="w-full py-3 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 font-bold text-xs shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {isGoogleSubmitting ? (
+            <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+          ) : (
+            <>
+              <Chrome className="w-4 h-4 text-slate-500" />
+              <span>Continue with Google</span>
+            </>
+          )}
+        </button>
 
         <p className="text-center text-xs text-slate-500">
           Already have an account?{' '}

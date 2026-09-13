@@ -108,6 +108,9 @@ export interface Review {
 
 export interface Transaction {
   _id: string;
+  transactionId?: string;
+  platformFee?: number;
+  hostPayout?: number;
   bookingId: string;
   propertyTitle: string;
   tenantName: string;
@@ -126,4 +129,7 @@ export interface PaginationData {
   totalPages: number;
   currentPage: number;
   limit: number;
+  // Aliases returned by older API payloads — accepted so both shapes work.
+  totalCount?: number;
+  page?: number;
 }

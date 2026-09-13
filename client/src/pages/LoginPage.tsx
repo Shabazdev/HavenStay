@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Building2, Mail, Lock, AlertCircle, ArrowRight } from 'lucide-react';
+import { Building2, Mail, Lock, AlertCircle, ArrowRight, Chrome } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.tsx';
+import { signInWithGoogle } from '../lib/auth-client.ts';
+import { showToast } from '../services/api.ts';
 import { dashboardRoute } from '../lib/navigation.ts';
 
 export const LoginPage: React.FC = () => {
@@ -13,6 +15,7 @@ export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Already authenticated → go to the role dashboard (or the originally
@@ -40,6 +43,19 @@ export const LoginPage: React.FC = () => {
       setErrorMessage(result.message || 'Invalid email or password.');
     }
     // On success the effect above redirects to the correct dashboard.
+  };
+
+  const handleGoogleSignIn = async () => {
+    setErrorMessage(null);
+    setIsGoogleSubmitting(true);
+    const result = await signInWithGoogle();
+    if (!result.ok) {
+      setIsGoogleSubmitting(false);
+      const message = result.message || 'Google sign-in is not available right now.';
+      setErrorMessage(message);
+      showToast(message, 'error');
+    }
+    // On success Better Auth redirects to the OAuth provider automatically.
   };
 
   return (
@@ -113,6 +129,28 @@ export const LoginPage: React.FC = () => {
             )}
           </button>
         </form>
+
+        <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          <span className="h-px flex-1 bg-slate-200" />
+          <span>or</span>
+          <span className="h-px flex-1 bg-slate-200" />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleGoogleSignIn}
+          disabled={isGoogleSubmitting}
+          className="w-full py-3 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 font-bold text-xs shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {isGoogleSubmitting ? (
+            <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+          ) : (
+            <>
+              <Chrome className="w-4 h-4 text-slate-500" />
+              <span>Continue with Google</span>
+            </>
+          )}
+        </button>
 
         <p className="text-center text-xs text-slate-500">
           Don&apos;t have an account?{' '}

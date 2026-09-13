@@ -2,8 +2,16 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "vite build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/[[...path]].ts": {
+      "maxDuration": 15
+    }
+  },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ]
 }
+

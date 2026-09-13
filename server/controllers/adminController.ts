@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { dbStore } from '../config/db.ts';
 import { AuthRequest } from '../middleware/auth.ts';
 import { fromNodeHeaders, getAuth } from '../lib/auth.ts';
@@ -29,6 +29,7 @@ export const getAdminStats = async (req: AuthRequest, res: Response): Promise<vo
       success: true,
       stats: {
         totalRevenue,
+        platformRevenue: totalRevenue,
         totalUsers,
         totalProperties,
         pendingProperties,
@@ -41,6 +42,38 @@ export const getAdminStats = async (req: AuthRequest, res: Response): Promise<vo
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: 'Failed to retrieve admin stats.' });
+  }
+};
+
+/** All properties for admin moderation (dashboard: GET /admin/properties). */
+export const getAdminProperties = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user || req.user.role !== 'admin') {
+      res.status(403).json({ success: false, message: 'Admin authorization required.' });
+      return;
+    }
+    const properties = [...dbStore.properties].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    res.status(200).json({ success: true, properties });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Failed to retrieve properties.' });
+  }
+};
+
+/** All bookings for the admin ledger (dashboard: GET /admin/bookings). */
+export const getAdminBookings = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user || req.user.role !== 'admin') {
+      res.status(403).json({ success: false, message: 'Admin authorization required.' });
+      return;
+    }
+    const bookings = [...dbStore.bookings].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    res.status(200).json({ success: true, bookings });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: 'Failed to retrieve bookings.' });
   }
 };
 
@@ -198,10 +231,26 @@ export const toggleUserBlock = async (req: AuthRequest, res: Response): Promise<
       success: true,
       message: `User has been ${targetUser.isBlocked ? 'suspended' : 'reactivated'}.`,
       isBlocked: targetUser.isBlocked,
+      user: {
+        _id: targetUser._id,
+        name: targetUser.name,
+        email: targetUser.email,
+        role: targetUser.role,
+        isBlocked: targetUser.isBlocked,
+        status: targetUser.isBlocked ? 'blocked' : 'active',
+      },
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: 'Failed to toggle user status.' });
   }
+};
+
+/**
+ * Alias handler for `PUT /api/admin/users/:userId/status` (used by the admin
+ * dashboard). Delegates to toggleUserBlock, which returns the updated user.
+ */
+export const toggleUserStatusAlias = async (req: Request, res: Response): Promise<void> => {
+  return toggleUserBlock(req as AuthRequest, res);
 };
 
 export const getAllTransactions = async (req: AuthRequest, res: Response): Promise<void> => {

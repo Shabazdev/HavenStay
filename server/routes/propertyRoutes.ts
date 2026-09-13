@@ -24,8 +24,9 @@ router.get('/item/:id', getPropertyById);
 router.get('/user/favorites', requireAuth, getFavorites);
 router.post('/user/favorites/toggle', requireAuth, toggleFavorite);
 
-// Owner routes
+// Owner routes (canonical path + legacy alias used by the dashboard).
 router.get('/owner/listings', requireAuth, authorizeRoles('owner', 'admin'), getOwnerProperties);
+router.get('/my-properties', requireAuth, authorizeRoles('owner', 'admin'), getOwnerProperties);
 router.post('/', requireAuth, authorizeRoles('owner', 'admin'), createProperty);
 router.put('/:id', requireAuth, authorizeRoles('owner', 'admin'), updateProperty);
 router.delete('/:id', requireAuth, authorizeRoles('owner', 'admin'), deleteProperty);

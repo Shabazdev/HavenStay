@@ -24,7 +24,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { Property, Booking, PropertyCategory } from '../types/index.ts';
-import { api, showToast } from '../services/api.ts';
+import { api, showToast, showConfirmDialog } from '../services/api.ts';
 import { useAuth } from '../context/AuthContext.tsx';
 import { LoadingSpinner } from '../components/LoadingSpinner.tsx';
 
@@ -70,12 +70,20 @@ export const OwnerDashboard: React.FC = () => {
       // 1. Get Analytics & Earnings
       const analyticsRes = await api.get('/owner/analytics');
       if (analyticsRes.data.success) {
-        setStats(analyticsRes.data.analytics);
-        setMonthlyEarnings(analyticsRes.data.monthlyEarnings);
+        // Backend returns { stats, monthlyChartData } — map onto the dashboard state.
+        const statsPayload = analyticsRes.data.analytics || analyticsRes.data.stats || {};
+        const monthlyPayload = analyticsRes.data.monthlyEarnings || analyticsRes.data.monthlyChartData || [];
+        setStats({
+          totalProperties: statsPayload.totalProperties || 0,
+          totalBookings: statsPayload.totalBookings || 0,
+          totalRevenue: statsPayload.totalEarnings ?? statsPayload.totalRevenue ?? 0,
+          pendingBookings: statsPayload.pendingBookings || 0,
+        });
+        setMonthlyEarnings(monthlyPayload);
       }
 
       // 2. Get My Properties
-      const propRes = await api.get('/properties/my-properties');
+      const propRes = await api.get('/properties/owner/listings');
       if (propRes.data.success) {
         setProperties(propRes.data.properties);
       }
@@ -148,7 +156,13 @@ export const OwnerDashboard: React.FC = () => {
   };
 
   const handleDeleteProperty = async (propId: string) => {
-    if (!window.confirm('Are you sure you want to remove this property listing?')) return;
+    const confirmed = await showConfirmDialog(
+      'Remove this listing?',
+      'This property will be permanently removed from the marketplace.',
+      'Yes, remove it',
+      true
+    );
+    if (!confirmed.isConfirmed) return;
     try {
       const res = await api.delete(`/properties/${propId}`);
       if (res.data.success) {

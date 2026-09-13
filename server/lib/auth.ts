@@ -14,8 +14,8 @@
 import { betterAuth } from 'better-auth';
 import { admin } from 'better-auth/plugins';
 import { fromNodeHeaders } from 'better-auth/node';
-import { memoryAdapter } from '@better-auth/memory-adapter';
 import { mongodbAdapter } from '@better-auth/mongo-adapter';
+import { memoryAdapter } from '@better-auth/memory-adapter';
 import mongoose from 'mongoose';
 import { upsertAuthUserSync, syncAuthUserUpdate, AuthUserDoc } from './dbSync.ts';
 
@@ -25,45 +25,63 @@ export { fromNodeHeaders };
  * Resolves the public base URL of the deployment.
  *
  * Order of precedence:
- *  1. Explicit env override (BETTER_AUTH_URL / APP_URL) — recommended in
- *     production so the value is stable.
+ *  1. Explicit env override (BETTER_AUTH_URL / CLIENT_URL / APP_URL) —
+ *     recommended in production so the value is stable.
  *  2. Vercel-provided production/preview domains (never localhost).
  *  3. Localhost fallback for local development only.
+ *
+ * Read at call time (never at import time) so dotenv-loaded values and
+ * Vercel-injected vars are always visible even though this module is
+ * imported before dotenv.config() runs in some entry points.
  */
 function resolvePublicBaseUrl(): string {
-  const explicit = process.env.BETTER_AUTH_URL || process.env.APP_URL || '';
-  if (explicit) return explicit;
+  const explicit =
+    process.env.BETTER_AUTH_URL || process.env.CLIENT_URL || process.env.APP_URL || '';
+  if (explicit) return explicit.replace(/\/+$/, '');
 
   // Vercel injects these automatically — use them so production never
   // falls back to a localhost URL.
   const vercelProductionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  if (vercelProductionUrl) return `https://${vercelProductionUrl}`;
+  if (vercelProductionUrl) return `https://${vercelProductionUrl}`.replace(/\/+$/, '');
   const vercelUrl = process.env.VERCEL_URL;
-  if (vercelUrl) return `https://${vercelUrl}`;
+  if (vercelUrl) return `https://${vercelUrl}`.replace(/\/+$/, '');
 
   return `http://localhost:${process.env.PORT || 3000}`;
 }
 
-export const BETTER_AUTH_BASE_URL = resolvePublicBaseUrl().replace(/\/+$/, '');
+export function getBetterAuthBaseUrl(): string {
+  return resolvePublicBaseUrl();
+}
 
 /**
  * Additional origins trusted by Better Auth (CSRF/origin checks). Comma
  * separated via the TRUSTED_ORIGINS env var, e.g. for custom domains and
  * deployment preview URLs. The base URL itself is always trusted.
+ * Computed lazily so dotenv/Vercel env is respected on serverless cold starts.
  */
-export const TRUSTED_ORIGINS: string[] = Array.from(
-  new Set(
-    [
-      BETTER_AUTH_BASE_URL,
-      process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '',
-      process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '',
-      process.env.VERCEL_BRANCH_URL ? `https://${process.env.VERCEL_BRANCH_URL}` : '',
-      ...(process.env.TRUSTED_ORIGINS ? process.env.TRUSTED_ORIGINS.split(',') : []),
-    ]
-      .map((origin) => origin.trim().replace(/\/+$/, ''))
-      .filter(Boolean)
-  )
-);
+export function getTrustedOrigins(): string[] {
+  const base = resolvePublicBaseUrl();
+  return Array.from(
+    new Set(
+      [
+        base,
+        process.env.CLIENT_URL ? process.env.CLIENT_URL.replace(/\/+$/, '') : '',
+        'https://haven-stay-ten.vercel.app',
+        process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '',
+        process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '',
+        process.env.VERCEL_BRANCH_URL ? `https://${process.env.VERCEL_BRANCH_URL}` : '',
+        ...(process.env.TRUSTED_ORIGINS ? process.env.TRUSTED_ORIGINS.split(',') : []),
+      ]
+        .map((origin) => origin.trim().replace(/\/+$/, ''))
+        .filter(Boolean)
+    )
+  );
+}
+
+// Backwards-compatible eager constants (resolved lazily at first access in
+// practice — kept for existing imports). Prefer the getters above.
+export const BETTER_AUTH_BASE_URL = resolvePublicBaseUrl();
+export const TRUSTED_ORIGINS: string[] = getTrustedOrigins();
 
 /**
  * Read at call time (never at import time) so values loaded by
@@ -100,7 +118,7 @@ function hasValidMongoUri(): boolean {
 }
 
 function resolveDatabase() {
-  if (hasValidMongoUri() && mongoose.connection.db) {
+  if (hasValidMongoUri() && mongoose.connection.readyState === 1 && mongoose.connection.db) {
     console.log('[Auth] Using MongoDB adapter for Better Auth persistence.');
     return mongodbAdapter(mongoose.connection.db as never, {
       // Standalone MongoDB (no replica set) cannot run transactions.
@@ -109,18 +127,39 @@ function resolveDatabase() {
       usePlural: false,
     });
   }
-  console.log('[Auth] No MongoDB connection — using in-memory adapter for Better Auth.');
+  if (!hasValidMongoUri()) {
+    console.log('[Auth] MONGODB_URI is missing — using the in-memory Better Auth adapter (non-persistent).');
+    console.warn(
+      '[Auth] Configure MONGODB_URI in production so registered users can sign in across serverless invocations.'
+    );
+  } else {
+    console.warn(
+      '[Auth] MongoDB is not connected yet (readyState=%s) — using the in-memory Better Auth adapter for this instance.',
+      mongoose.connection.readyState
+    );
+  }
   // Production deployments should always provide MONGODB_URI for persistent sessions.
   return memoryAdapter({ user: [], session: [], account: [], verification: [] });
 }
 
 export function createAuth() {
+  // Google OAuth is enabled only when real credentials are configured, so
+  // local/dev builds without them keep working unchanged.
+  const googleClientId = (process.env.GOOGLE_CLIENT_ID || '').trim();
+  const googleClientSecret = (process.env.GOOGLE_CLIENT_SECRET || '').trim();
+  const googleConfigured =
+    Boolean(googleClientId && googleClientSecret) &&
+    !googleClientId.includes('your-google-client-id') &&
+    !googleClientSecret.includes('your-google-client-secret');
+
   return betterAuth({
     appName: 'HavenStay',
-    baseURL: BETTER_AUTH_BASE_URL,
+    // Resolved lazily at creation time (after dotenv/Vercel env is loaded),
+    // so production never falls back to localhost.
+    baseURL: getBetterAuthBaseUrl(),
     // Trusted origins for CSRF/origin validation (production domains, Vercel
     // deployment URLs, and any TRUSTED_ORIGINS env entries).
-    trustedOrigins: TRUSTED_ORIGINS,
+    trustedOrigins: getTrustedOrigins(),
     secret: resolveSecret(),
     database: resolveDatabase(),
 
@@ -130,6 +169,17 @@ export function createAuth() {
       maxPasswordLength: 128,
       autoSignIn: true,
     },
+
+    ...(googleConfigured
+      ? {
+          socialProviders: {
+            google: {
+              clientId: googleClientId,
+              clientSecret: googleClientSecret,
+            },
+          },
+        }
+      : {}),
 
     session: {
       expiresIn: 60 * 60 * 24 * 7, // 7 days
@@ -148,9 +198,13 @@ export function createAuth() {
     advanced: {
       cookiePrefix: 'havenstay',
       defaultCookieAttributes: {
-        secure: process.env.NODE_ENV === 'production',
+        // `Secure` cookies are only sent over HTTPS. Local HTTP development
+        // must stay non-secure, but Vercel/preview deployments are always
+        // HTTPS — even when NODE_ENV is not literally "production".
+        secure: resolvePublicBaseUrl().startsWith('https://'),
         sameSite: 'lax',
       },
+      useSecureCookies: resolvePublicBaseUrl().startsWith('https://'),
     },
 
     databaseHooks: {

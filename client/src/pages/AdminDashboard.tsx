@@ -489,12 +489,12 @@ export const AdminDashboard: React.FC = () => {
                 {transactions.map((tx) => (
                   <tr key={tx._id} className="hover:bg-slate-50/70 font-mono text-xs">
                     <td className="p-4 pl-6">
-                      <p className="text-slate-900 font-bold">{tx.transactionId}</p>
+                      <p className="text-slate-900 font-bold">{tx.transactionId || tx._id}</p>
                       <p className="text-[10px] text-slate-400 font-sans">{tx.paymentMethod}</p>
                     </td>
                     <td className="p-4 font-bold text-slate-900">${tx.amount}</td>
-                    <td className="p-4 text-emerald-600 font-bold">${tx.platformFee}</td>
-                    <td className="p-4 text-slate-700 font-bold">${tx.hostPayout}</td>
+                    <td className="p-4 text-emerald-600 font-bold">${tx.platformFee ?? Math.round(tx.amount * 0.1)}</td>
+                    <td className="p-4 text-slate-700 font-bold">${tx.hostPayout ?? Math.round(tx.amount * 0.9)}</td>
                     <td className="p-4">
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800">
                         {tx.status}

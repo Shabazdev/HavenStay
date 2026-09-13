@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import dotenv from 'dotenv';
-import { connectDB } from './config/db.ts';
+import { connectDB, isMongoConfigured } from './config/db.ts';
 import { initAuth, ensureBootstrapAdmin } from './lib/auth.ts';
 import { toNodeHandler } from 'better-auth/node';
 
@@ -30,7 +30,13 @@ dotenv.config();
 export async function createApp(): Promise<express.Express> {
   const app = express();
 
-  // CORS
+  // Behind Vercel's proxy, `req.secure` / `X-Forwarded-Proto` must be trusted
+  // so Better Auth sets `Secure` cookies correctly in production.
+  app.set('trust proxy', 1);
+
+  // Same-origin in production (Express serves the SPA + /api on one host),
+  // so a permissive reflector is fine and required for the httpOnly session
+  // cookie. Credentials must stay enabled for Better Auth.
   app.use(
     cors({
       origin: true,
@@ -53,12 +59,28 @@ export async function createApp(): Promise<express.Express> {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-  // Health check
+  // Health check (also reports whether durable auth persistence is active).
   app.get('/api/health', (req, res) => {
     res.json({
       status: 'ok',
       service: 'HavenStay MERN Property Rental Platform API',
       timestamp: new Date().toISOString(),
+      authPersistence: isMongoConfigured() ? 'mongodb' : 'memory (configure MONGODB_URI for production login persistence)',
+    });
+  });
+
+  // Better Auth diagnostics endpoint: confirms whether the server can reach a
+  // durable user database. Login ("Invalid email or password") with a correct
+  // password almost always means the user/account record is missing — i.e.
+  // the serverless memory adapter was used because MONGODB_URI is unset.
+  app.get('/api/auth-status', (req, res) => {
+    res.json({
+      success: true,
+      mongoConfigured: isMongoConfigured(),
+      authPersistence: isMongoConfigured() ? 'mongodb' : 'memory',
+      hint: isMongoConfigured()
+        ? 'Auth users persist in MongoDB.'
+        : 'Set MONGODB_URI in Vercel so registrations survive across serverless invocations; otherwise sign-up succeeds but later sign-in returns "Invalid email or password".',
     });
   });
 
