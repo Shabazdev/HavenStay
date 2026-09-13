@@ -1,10 +1,23 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "vite build",
+  "buildCommand": "vite build && esbuild serverless-entry.ts --bundle --platform=node --format=cjs --packages=external --outfile=api/index.cjs",
   "outputDirectory": "dist",
+  "functions": {
+    "api/index.cjs": {
+      "bodyParser": false,
+      "maxDuration": 15
+    },
+    "api/ping.cjs": {
+      "maxDuration": 15
+    }
+  },
   "rewrites": [
     {
-      "source": "/((?!api/.*).*)",
+      "source": "/api/(.*)",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]

@@ -1,24 +1,21 @@
 /**
- * Vercel serverless entry point (Node.js runtime).
+ * HavenStay Vercel serverless entry point.
  *
- * Every `/api/*` request is served by this catch-all function, which
- * delegates to the shared HavenStay Express application (Better Auth routes,
- * health check, business API). `api/[...path].ts` is the documented Vercel
- * Function catch-all name — each request keeps its original URL, so Express
- * routes (`/api/auth/*`, `/api/properties`, `/api/health`, …) match as-is.
- *
- * The app instance is cached on `globalThis` so warm instances reuse the
- * same Express app, mongoose connection, and Better Auth singleton.
+ * This file is compiled at BUILD time by esbuild into a single self-contained
+ * `api/index.cjs` (a plain CJS function file — no on-platform TS compilation
+ * needed). Vercel rewrites every `/api/*` request to `/api/index`, and each
+ * request keeps its original URL, so the Express routes (`/api/auth/*`,
+ * `/api/properties`, `/api/health`, …) match as-is.
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { Express } from 'express';
-import { createApp } from '../server/app.ts';
+import { createApp } from './server/app.ts';
 
 const globalForApp = globalThis as { __havenstayApp?: Promise<Express> };
 
 function getApp(): Promise<Express> {
   if (!globalForApp.__havenstayApp) {
-    globalForApp.__havenstayApp = createApp().catch((err) => {
+    globalForApp.__havenstayApp = createApp().catch((err: unknown) => {
       console.error('[API] createApp failed:', err);
       globalForApp.__havenstayApp = undefined;
       throw err;
@@ -29,7 +26,8 @@ function getApp(): Promise<Express> {
 
 // Better Auth reads the raw request body itself via `toNodeHandler(auth)`.
 // Vercel's default body parser would consume/parse the stream first and break
-// POST /api/auth/* (sign-up, sign-in), so it must stay disabled here.
+// POST /api/auth/* (sign-up, sign-in), so it must stay disabled. This config is
+// ALSO mirrored in vercel.json -> functions.api/index.cjs.bodyParser.
 export const config = {
   api: {
     bodyParser: false,
