@@ -6,9 +6,6 @@
     "api/index.cjs": {
       "bodyParser": false,
       "maxDuration": 15
-    },
-    "api/ping.cjs": {
-      "maxDuration": 15
     }
   },
   "rewrites": [
